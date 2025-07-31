@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# 1. Check for Ollama
+if ! command -v ollama &> /dev/null; then
+    echo "❌ Ollama is not installed."
+    echo "Install from: https://ollama.ai"
+    exit 1
+fi
+
+# 2. Ensure mistral model is available
+if ! ollama list | grep -q "codellama:7b"; then
+    echo "🔄 Pulling codellama model..."
+    ollama pull codellama:7b || {
+        echo "❌ Failed to pull codellama model."
+        exit 1
+    }
+fi
+
+# 3. Get staged diff
+DIFF=$(git diff --cached)
+if [ -z "$DIFF" ]; then
+    exit 0
+fi
+
+# 4. Generate commit message using best practices
+COMMIT_MSG=$(echo -e "You are an AI that writes Git commit messages.
+Follow these rules:
+- Output only the commit message itself. No introduction.
+- No ending punctuation.
+
+Generate the best-practice commit message for this diff:\n\n$DIFF" | ollama run codallama:7b)
+
+# 5. Use only the first line (safety)
+COMMIT_MSG=$(echo "$COMMIT_MSG" | head -n 1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+# 6. Write to commit message file
+echo "$COMMIT_MSG" > "$1"
